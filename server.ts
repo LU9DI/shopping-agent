@@ -1,3 +1,4 @@
+import authRoutes from "./src/routes/authRoutes.js";
 import shoppingRoutes from "./src/routes/shoppingRoutes.js";
 import { normalizeIntent } from "./src/domain/shopping.js";
 import express from "express";
@@ -15,6 +16,8 @@ app.use(express.json({ limit: "1mb" }));
 app.use(metricsMiddleware);
 
 app.use("/api/shopping", shoppingRoutes);
+
+app.use("/api/auth", authRoutes);
 
 app.get("/api/health", async (_req, res) => {
   try {
