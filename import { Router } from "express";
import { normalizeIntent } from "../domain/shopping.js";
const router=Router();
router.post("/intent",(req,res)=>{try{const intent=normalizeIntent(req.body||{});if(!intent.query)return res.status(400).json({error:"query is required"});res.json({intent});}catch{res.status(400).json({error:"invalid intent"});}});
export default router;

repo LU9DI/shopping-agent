@@ -1,0 +1,5 @@
+import { Router } from "express";
+import { normalizeIntent } from "../domain/shopping.js";
+const router=Router();
+router.post("/intent",(req,res)=>{try{const intent=normalizeIntent(req.body||{});if(!intent.query)return res.status(400).json({error:"query is required"});res.json({intent});}catch{res.status(400).json({error:"invalid intent"});}});
+export default router;
