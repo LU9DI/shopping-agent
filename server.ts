@@ -36,6 +36,8 @@ app.use("/api/watchlists", watchlistRoutes);
 app.use("/api/price-checks", priceCheckRoutes);
 app.use("/api/auth", authRoutes);
 
+app.use("/api/acquisition", acquisitionRoutes);
+
 app.get("/api/health", async (_req, res) => {
   try { await initDb().query("SELECT 1"); res.json({ ok: true, service: "shopping-agent", database: "ok" }); }
   catch { res.status(503).json({ ok: false, database: "error" }); }
