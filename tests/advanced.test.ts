@@ -1,0 +1,2 @@
+import { test } from "node:test"; import assert from "node:assert/strict"; import { rankCandidates } from "../src/services/shoppingService.js";
+test("ranks candidates by budget and query relevance",()=>{const r=rankCandidates([{title:"Laptop gamer",price:900},{title:"Other",price:1200}],{query:"laptop",budget:1000});assert.equal(r[0].title,"Laptop gamer");assert.ok((r[0].score??0)>(r[1].score??0));});
