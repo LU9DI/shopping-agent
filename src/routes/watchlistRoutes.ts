@@ -1,0 +1,9 @@
+import { Router } from "express";
+import { randomUUID } from "node:crypto";
+import { initDb } from "../core/db.js";
+import { requireAuth } from "../middleware/auth.js";
+const router=Router();
+router.post("/",requireAuth,async(req,res)=>{try{const {name,query,budget,targetPrice,currency="BRL"}=req.body||{};if(!name?.trim()||!query?.trim())return res.status(400).json({error:"name and query are required"});const id=randomUUID();await initDb().query("INSERT INTO shopping_watchlists (id,user_id,name,query,budget,target_price,currency) VALUES ($1,$2,$3,$4,$5,$6,$7)",[id,(req as any).userId,name.trim(),query.trim(),budget??null,targetPrice??null,currency]);res.status(201).json({id,name:name.trim(),query:query.trim(),budget:budget??null,targetPrice:targetPrice??null,currency,active:true});}catch{res.status(500).json({error:"failed to create watchlist"});}});
+router.get("/",requireAuth,async(req,res)=>{try{const r=await initDb().query("SELECT id,name,query,budget,target_price,currency,active,created_at FROM shopping_watchlists WHERE user_id=$1 ORDER BY created_at DESC",[(req as any).userId]);res.json({watchlists:r.rows});}catch{res.status(500).json({error:"failed to load watchlists"});}});
+router.patch("/:id",requireAuth,async(req,res)=>{try{const r=await initDb().query("UPDATE shopping_watchlists SET active=COALESCE($1,active),budget=COALESCE($2,budget),target_price=COALESCE($3,target_price) WHERE id=$4 AND user_id=$5 RETURNING id,name,query,budget,target_price,currency,active",[(req.body?.active),req.body?.budget,req.body?.targetPrice,req.params.id,(req as any).userId]);if(!r.rowCount)return res.status(404).json({error:"watchlist not found"});res.json({watchlist:r.rows[0]});}catch{res.status(500).json({error:"failed to update watchlist"});}});
+export default router;
