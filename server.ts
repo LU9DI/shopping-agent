@@ -1,4 +1,5 @@
 import express from "express";
+import acquisitionRoutes from "./src/routes/acquisitionRoutes.js";
 import cors from "cors";
 import authRoutes from "./src/routes/authRoutes.js";
 import shoppingRoutes from "./src/routes/shoppingRoutes.js";
