@@ -14,6 +14,16 @@ import { errorHandler } from "./src/middleware/errorHandler.js";
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const origins = process.env.CORS_ORIGIN?.split(",").map((v) => v.trim()).filter(Boolean);
+const PUBLIC_PAGES: Array<[string,string,string]> = [["/produto","Shopping Agent — compras inteligentes","Planeje compras, acompanhe preços e organize suas watchlists."],["/recursos","Recursos do Shopping Agent","Watchlists, histórico de preços e acompanhamento de oportunidades de compra."],["/guias","Guias de compras inteligentes","Guias práticos para pesquisar, comparar e acompanhar produtos."],["/comparacoes","Comparações de produtos","Estruture comparações de produtos e acompanhe mudanças de preço."],["/faq","FAQ — Shopping Agent","Perguntas frequentes sobre compras inteligentes, watchlists e preços."]];
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (ch) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch] || ch));
+const publicBase = (req: express.Request) => (process.env.PUBLIC_SITE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+const renderSeoPage = (req: express.Request, path: string, title: string, description: string) => {
+  const base = publicBase(req);
+  const canonical = base + (path === "/" ? "" : path);
+  const safeTitle = escapeHtml(title);
+  const safeDescription = escapeHtml(description);
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeTitle}</title><meta name="description" content="${safeDescription}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:title" content="${safeTitle}"><meta property="og:description" content="${safeDescription}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:type" content="website"></head><body><main><h1>${safeTitle}</h1><p>${safeDescription}</p><p><a href="/produto">Conheça o produto</a></p></main></body></html>`;
+};
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -35,6 +45,39 @@ app.use("/api/shopping", shoppingRoutes);
 app.use("/api/watchlists", watchlistRoutes);
 app.use("/api/price-checks", priceCheckRoutes);
 app.use("/api/auth", authRoutes);
+
+
+app.get("/robots.txt", (req, res) => {
+  const base = publicBase(req);
+  res.type("text/plain").send(`User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /login
+Disallow: /app
+Disallow: /dashboard
+Disallow: /admin
+Sitemap: ${base}/sitemap.xml
+`);
+});
+app.get("/sitemap.xml", (req, res) => {
+  const base = publicBase(req);
+  const urls = ["/", ...PUBLIC_PAGES.map(([path]) => path)];
+  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escapeHtml(base + (path === "/" ? "" : path))}</loc></url>`).join("")}</urlset>`);
+});
+app.get(["/login","/app","/dashboard","/admin"], (_req, res) => {
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+  res.status(404).type("html").send("<!doctype html><html><head><meta name=\"robots\" content=\"noindex,nofollow,noarchive\"></head><body>Not found</body></html>");
+});
+app.get("/", (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.type("html").send(renderSeoPage(req, "/", "Shopping Agent", "Planejamento de compras, watchlists e acompanhamento de preços com inteligência."));
+});
+for (const [path, title, description] of PUBLIC_PAGES) {
+  app.get(path, (req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.type("html").send(renderSeoPage(req, path, title, description));
+  });
+}
 
 app.use("/api/acquisition", acquisitionRoutes);
 
