@@ -14,11 +14,11 @@ router.post("/",requireAuth,async(req,res)=>{try{
 }catch{res.status(500).json({error:"failed to create watchlist"});}});
 router.get("/",requireAuth,async(req,res)=>{try{const r=await initDb().query("SELECT id,name,query,budget,target_price,currency,active,created_at FROM shopping_watchlists WHERE user_id=$1 ORDER BY created_at DESC",[(req as any).userId]);res.json({watchlists:r.rows});}catch{res.status(500).json({error:"failed to load watchlists"});}});
 router.patch("/:id",requireAuth,async(req,res)=>{try{
- if(!UUID.test(req.params.id))return res.status(400).json({error:"invalid watchlist id"});
+ if(!UUID.test(String(req.params.id)))return res.status(400).json({error:"invalid watchlist id"});
  const body=req.body||{};if(body.active!==undefined&&typeof body.active!=="boolean")return res.status(400).json({error:"active must be boolean"});
  const b=money(body.budget),t=money(body.targetPrice);if(body.budget!==undefined&&b===undefined||body.targetPrice!==undefined&&t===undefined)return res.status(400).json({error:"invalid budget or targetPrice"});
  const r=await initDb().query("UPDATE shopping_watchlists SET active=COALESCE($1,active),budget=COALESCE($2,budget),target_price=COALESCE($3,target_price) WHERE id=$4 AND user_id=$5 RETURNING id,name,query,budget,target_price,currency,active",[body.active??null,b,t,req.params.id,(req as any).userId]);
  if(!r.rowCount)return res.status(404).json({error:"watchlist not found"});res.json({watchlist:r.rows[0]});
 }catch{res.status(500).json({error:"failed to update watchlist"});}});
-router.delete("/:id",requireAuth,async(req,res)=>{try{if(!UUID.test(req.params.id))return res.status(400).json({error:"invalid watchlist id"});const r=await initDb().query("DELETE FROM shopping_watchlists WHERE id=$1 AND user_id=$2",[req.params.id,(req as any).userId]);if(!r.rowCount)return res.status(404).json({error:"watchlist not found"});res.status(204).end();}catch{res.status(500).json({error:"failed to delete watchlist"});}});
+router.delete("/:id",requireAuth,async(req,res)=>{try{if(!UUID.test(String(req.params.id)))return res.status(400).json({error:"invalid watchlist id"});const r=await initDb().query("DELETE FROM shopping_watchlists WHERE id=$1 AND user_id=$2",[req.params.id,(req as any).userId]);if(!r.rowCount)return res.status(404).json({error:"watchlist not found"});res.status(204).end();}catch{res.status(500).json({error:"failed to delete watchlist"});}});
 export default router;
