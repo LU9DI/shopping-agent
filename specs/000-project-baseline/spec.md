@@ -39,3 +39,10 @@ Complete acquisition reporting, bounded retry/recovery, real distribution adapte
 
 ## Traceability
 Create future bounded features under specs/###-feature-name/; do not turn this baseline into an ever-growing feature specification.
+## Product UI baseline
+- The public Shopping Agent experience must present as a polished consumer SaaS/company website, not an API shell.
+- Visual direction: vibrant but simple and elegant, with a restrained gradient accent system and generous whitespace.
+- Public pages must share a consistent header, navigation, responsive layout, CTA system, and footer.
+- The footer must expose a visible **Política de Privacidade** link on every public page.
+- The privacy page is public and included in the sitemap; private application routes remain non-indexable.
+- UI changes must preserve the existing API, tenant isolation, security controls, acquisition automation, and Filtra.AI separation.
