@@ -3,6 +3,7 @@ import express from "express";
 import acquisitionRoutes from "./src/routes/acquisitionRoutes.js";
 import cors from "cors";
 import authRoutes from "./src/routes/authRoutes.js";
+import platformRoutes from "./src/routes/platformRoutes.js";
 import shoppingRoutes from "./src/routes/shoppingRoutes.js";
 import watchlistRoutes from "./src/routes/watchlistRoutes.js";
 import priceCheckRoutes from "./src/routes/priceCheckRoutes.js";
@@ -89,6 +90,7 @@ app.use("/api/shopping", shoppingRoutes);
 app.use("/api/watchlists", watchlistRoutes);
 app.use("/api/price-checks", priceCheckRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/platform", platformRoutes);
 
 
 app.get("/robots.txt", (req, res) => {
