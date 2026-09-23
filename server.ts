@@ -1,3 +1,4 @@
+import acquisitionAutomationRoutes from "./src/routes/acquisitionAutomationRoutes.js";
 import express from "express";
 import acquisitionRoutes from "./src/routes/acquisitionRoutes.js";
 import cors from "cors";
@@ -79,6 +80,7 @@ for (const [path, title, description] of PUBLIC_PAGES) {
   });
 }
 
+app.use("/api/acquisition/automation", acquisitionAutomationRoutes);
 app.use("/api/acquisition", acquisitionRoutes);
 
 app.get("/api/health", async (_req, res) => {
