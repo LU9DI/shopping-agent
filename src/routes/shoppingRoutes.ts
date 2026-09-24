@@ -13,7 +13,7 @@ const pagination=(q:any)=>{
   return {limit,offset};
 };
 
-function transition(ruleType:string,previous:number|null,current:number,threshold:number|null){
+function transition(ruleType:string,previous:number|null,current:number,threshold:number|null,previousDeltaPercent:number|null){
   if(previous===null||threshold===null)return {triggered:false,reason:"no_previous_or_threshold"};
   if(ruleType==="target_price"||ruleType==="below_budget"){
     const crossed=previous>threshold&&current<=threshold;
@@ -21,7 +21,7 @@ function transition(ruleType:string,previous:number|null,current:number,threshol
   }
   if(ruleType==="drop_percent"){
     if(previous<=0)return {triggered:false,reason:"invalid_previous_price"};
-    const previousDrop=0;
+    const previousDrop=previousDeltaPercent===null?0:Math.max(0,-previousDeltaPercent);
     const currentDrop=((previous-current)/previous)*100;
     return {triggered:currentDrop>=threshold&&previousDrop<threshold,reason:currentDrop>=threshold?"drop_threshold_crossed":"drop_threshold_not_crossed",currentDropPercent:currentDrop};
   }
@@ -57,10 +57,10 @@ router.post("/:watchlistId",requireAuth,async(req,res)=>{
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))",[watchlistId]);
 
     const previousResult=await client.query(
-      "SELECT id,price,merchant,currency,checked_at FROM price_history WHERE watchlist_id=$1 ORDER BY checked_at DESC LIMIT 1",
+      "SELECT id,price,merchant,currency,checked_at,delta_percent FROM price_history WHERE watchlist_id=$1 ORDER BY checked_at DESC LIMIT 1",
       [watchlistId]
     );
-    const previous=previousResult.rows[0]?Number(previousResult.rows[0].price):null;
+    const previous=previousResult.rows[0]?Number(previousResult.rows[0].price):null;\n    const previousDeltaPercent=previousResult.rows[0]?.delta_percent==null?null:Number(previousResult.rows[0].delta_percent);
     const delta=previous===null?null:Math.round((price-previous)*100)/100;
     const deltaPercent=previous&&previous!==0?Math.round(((price-previous)/previous)*1000000)/10000:null;
 
@@ -91,7 +91,7 @@ router.post("/:watchlistId",requireAuth,async(req,res)=>{
     const events:any[]=[];
     for(const rule of rules.rows){
       const threshold=rule.threshold===null?null:Number(rule.threshold);
-      const evaluation=transition(rule.rule_type,previous,price,threshold);
+      const evaluation=transition(rule.rule_type,previous,price,threshold,previousDeltaPercent);
       if(!evaluation.triggered)continue;
 
       const bucketStart=new Date(Math.floor(Date.now()/ALERT_COOLDOWN_MS)*ALERT_COOLDOWN_MS);
