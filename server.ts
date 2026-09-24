@@ -6,6 +6,7 @@ import authRoutes from "./src/routes/authRoutes.js";
 import platformRoutes from "./src/routes/platformRoutes.js";
 import shoppingRoutes from "./src/routes/shoppingRoutes.js";
 import watchlistRoutes from "./src/routes/watchlistRoutes.js";
+import alertRoutes from "./src/routes/alertRoutes.js";
 import priceCheckRoutes from "./src/routes/priceCheckRoutes.js";
 import { initDb, closeDb } from "./src/core/db.js";
 import { metricsMiddleware, metricsSnapshot } from "./src/core/metrics.js";
@@ -113,6 +114,7 @@ app.use(metricsMiddleware);
 
 app.use("/api/shopping", shoppingRoutes);
 app.use("/api/watchlists", watchlistRoutes);
+app.use("/api/alerts", alertRoutes);
 app.use("/api/price-checks", priceCheckRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/platform", platformRoutes);
