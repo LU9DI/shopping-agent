@@ -110,10 +110,13 @@ const previousDeltaPercent=previousResult.rows[0]?.delta_percent==null?null:Numb
         evaluation
       };
 
+      const now=new Date();
+      const recent=await client.query("SELECT id FROM alert_events WHERE alert_rule_id=$1 AND triggered_at>$2 ORDER BY triggered_at DESC LIMIT 1",[ruleId,new Date(now.getTime()-ALERT_COOLDOWN_MS)]);
+      if(recent.rowCount)continue;
+      const bucketStart=now;
       const inserted=await client.query(
         `INSERT INTO alert_events(id,user_id,watchlist_id,alert_rule_id,price_check_id,rule_type,threshold,previous_price,current_price,delta,delta_percent,dedupe_window_start,reason)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-         ON CONFLICT(alert_rule_id,dedupe_window_start) DO NOTHING
          RETURNING id,triggered_at`,
         [randomUUID(),userId,watchlistId,rule.id,id,rule.rule_type,threshold,previous,price,delta,deltaPercent,bucketStart,JSON.stringify(reason)]
       );
@@ -129,10 +132,6 @@ const previousDeltaPercent=previousResult.rows[0]?.delta_percent==null?null:Numb
     // Backward-compatible implicit target alert when no explicit rules exist.
     if(!rules.rowCount&&w.rows[0].target_price!=null&&previous!==null&&previous>Number(w.rows[0].target_price)&&price<=Number(w.rows[0].target_price)){
       const threshold=Number(w.rows[0].target_price);
-      const now=new Date();
-      const recent=await client.query("SELECT id FROM alert_events WHERE alert_rule_id=$1 AND triggered_at>$2 ORDER BY triggered_at DESC LIMIT 1",[ruleId,new Date(now.getTime()-ALERT_COOLDOWN_MS)]);
-      if(recent.rowCount) { await client.query("COMMIT"); return res.status(201).json({id,watchlistId,price,previousPrice:previous,delta,deltaPercent,alerts:events,alert:Boolean(events.length),duplicate:false}); }
-      const bucketStart=now;
       const pseudoRule=await client.query(
         "SELECT id FROM alert_rules WHERE watchlist_id=$1 AND user_id=$2 AND rule_type='target_price' AND threshold=$3 LIMIT 1",
         [watchlistId,userId,threshold]
