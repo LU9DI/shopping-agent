@@ -141,12 +141,20 @@ const previousDeltaPercent=previousResult.rows[0]?.delta_percent==null?null:Numb
         const created=await client.query("INSERT INTO alert_rules(id,user_id,watchlist_id,rule_type,threshold) VALUES($1,$2,$3,'target_price',$4) RETURNING id",[randomUUID(),userId,watchlistId,threshold]);
         ruleId=created.rows[0].id;
       }
-      const inserted=await client.query(
-        `INSERT INTO alert_events(id,user_id,watchlist_id,alert_rule_id,price_check_id,rule_type,threshold,previous_price,current_price,delta,delta_percent,dedupe_window_start,reason)
-         VALUES($1,$2,$3,$4,$5,'target_price',$6,$7,$8,$9,$10,$11,$12)
-         ON CONFLICT(alert_rule_id,dedupe_window_start) DO NOTHING RETURNING id,triggered_at`,
-        [randomUUID(),userId,watchlistId,ruleId,id,threshold,previous,price,delta,deltaPercent,bucketStart,JSON.stringify({transition:"edge",implicit:true,previousPrice:previous,currentPrice:price,delta,deltaPercent,threshold})]
-      );
+      const now=new Date();
+      const recent=await client.query("SELECT id FROM alert_events WHERE alert_rule_id=$1 AND triggered_at>$2 ORDER BY triggered_at DESC LIMIT 1",[ruleId,new Date(now.getTime()-ALERT_COOLDOWN_MS)]);
+      if(!recent.rowCount){
+        const inserted=await client.query(
+          `INSERT INTO alert_events(id,user_id,watchlist_id,alert_rule_id,price_check_id,rule_type,threshold,previous_price,current_price,delta,delta_percent,dedupe_window_start,reason)
+           VALUES($1,$2,$3,$4,$5,'target_price',$6,$7,$8,$9,$10,$11,$12)
+           RETURNING id,triggered_at`,
+          [randomUUID(),userId,watchlistId,ruleId,id,threshold,previous,price,delta,deltaPercent,now,JSON.stringify({transition:"edge",implicit:true,previousPrice:previous,currentPrice:price,delta,deltaPercent,threshold})]
+        );
+        if(inserted.rowCount){
+          events.push({id:inserted.rows[0].id,ruleId,ruleType:"target_price",threshold,previousPrice:previous,currentPrice:price,delta,deltaPercent,triggeredAt:inserted.rows[0].triggered_at});
+          await client.query("INSERT INTO shopping_price_alerts(id,user_id,watchlist_id,price_check_id,target_price,price,alert_rule_id) VALUES($1,$2,$3,$4,$5,$6,$7)",[randomUUID(),userId,watchlistId,id,threshold,price,ruleId]);
+        }
+      }
       if(inserted.rowCount){
         events.push({id:inserted.rows[0].id,ruleId,ruleType:"target_price",threshold,previousPrice:previous,currentPrice:price,delta,deltaPercent,triggeredAt:inserted.rows[0].triggered_at});
         await client.query("INSERT INTO shopping_price_alerts(id,user_id,watchlist_id,price_check_id,target_price,price,alert_rule_id) VALUES($1,$2,$3,$4,$5,$6,$7)",[randomUUID(),userId,watchlistId,id,threshold,price,ruleId]);
