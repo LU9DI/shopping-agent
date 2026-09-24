@@ -17,7 +17,7 @@ router.post("/",requireAuth,async(req,res)=>{
       if(typeof name!=="string"||!name.trim()||name.trim().length>200||typeof query!=="string"||!query.trim()||query.trim().length>500)throw new Error("invalid input");
       const b=money(budget),t=money(targetPrice); if(b===undefined||t===undefined||typeof currency!=="string"||!CURRENCIES.has(currency.toUpperCase()))throw new Error("invalid input");
       const active=await client.query("SELECT COUNT(*)::int count FROM shopping_watchlists WHERE user_id=$1 AND active=true",[userId]);
-      const entitlement=await getEntitlement(userId,"watchlists"); assertEntitlement(entitlement,"watchlists",Number(active.rows[0].count));
+      const ent=await client.query("SELECT e.enabled,e.limit_value FROM app_users u LEFT JOIN plan_entitlements e ON e.plan=u.plan AND e.feature=$2 WHERE u.id=$1",[userId,"watchlists"]); const row=ent.rows[0]; assertEntitlement({allowed:row.enabled!==false,limit:row.limit_value==null?null:Number(row.limit_value),plan:""},"watchlists",Number(active.rows[0].count));
       const id=randomUUID(),cur=currency.toUpperCase();
       await client.query("INSERT INTO shopping_watchlists (id,user_id,name,query,budget,target_price,currency) VALUES ($1,$2,$3,$4,$5,$6,$7)",[id,userId,name.trim(),query.trim(),b,t,cur]);
       return {id,name:name.trim(),query:query.trim(),budget:b,targetPrice:t,currency:cur,active:true};
