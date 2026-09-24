@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS price_history (
- id uuid PRIMARY KEY, watchlist_id uuid NOT NULL REFERENCES watchlists(id) ON DELETE CASCADE,
+ id uuid PRIMARY KEY, watchlist_id uuid NOT NULL REFERENCES shopping_watchlists(id) ON DELETE CASCADE,
  merchant text, price numeric(14,2) NOT NULL, currency text NOT NULL DEFAULT 'BRL',
  checked_at timestamptz NOT NULL DEFAULT now()
 );
