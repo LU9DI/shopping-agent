@@ -60,7 +60,8 @@ router.post("/:watchlistId",requireAuth,async(req,res)=>{
       "SELECT id,price,merchant,currency,checked_at,delta_percent FROM price_history WHERE watchlist_id=$1 ORDER BY checked_at DESC LIMIT 1",
       [watchlistId]
     );
-    const previous=previousResult.rows[0]?Number(previousResult.rows[0].price):null;\n    const previousDeltaPercent=previousResult.rows[0]?.delta_percent==null?null:Number(previousResult.rows[0].delta_percent);
+    const previous=previousResult.rows[0]?Number(previousResult.rows[0].price):null;
+const previousDeltaPercent=previousResult.rows[0]?.delta_percent==null?null:Number(previousResult.rows[0].delta_percent);
     const delta=previous===null?null:Math.round((price-previous)*100)/100;
     const deltaPercent=previous&&previous!==0?Math.round(((price-previous)/previous)*1000000)/10000:null;
 
@@ -94,7 +95,10 @@ router.post("/:watchlistId",requireAuth,async(req,res)=>{
       const evaluation=transition(rule.rule_type,previous,price,threshold,previousDeltaPercent);
       if(!evaluation.triggered)continue;
 
-      const bucketStart=new Date(Math.floor(Date.now()/ALERT_COOLDOWN_MS)*ALERT_COOLDOWN_MS);
+      const now=new Date();
+      const recent=await client.query("SELECT id FROM alert_events WHERE alert_rule_id=$1 AND triggered_at>$2 ORDER BY triggered_at DESC LIMIT 1",[rule.id,new Date(now.getTime()-ALERT_COOLDOWN_MS)]);
+      if(recent.rowCount)continue;
+      const bucketStart=now;
       const reason={
         transition:"edge",
         previousPrice:previous,
@@ -125,7 +129,10 @@ router.post("/:watchlistId",requireAuth,async(req,res)=>{
     // Backward-compatible implicit target alert when no explicit rules exist.
     if(!rules.rowCount&&w.rows[0].target_price!=null&&previous!==null&&previous>Number(w.rows[0].target_price)&&price<=Number(w.rows[0].target_price)){
       const threshold=Number(w.rows[0].target_price);
-      const bucketStart=new Date(Math.floor(Date.now()/ALERT_COOLDOWN_MS)*ALERT_COOLDOWN_MS);
+      const now=new Date();
+      const recent=await client.query("SELECT id FROM alert_events WHERE alert_rule_id=$1 AND triggered_at>$2 ORDER BY triggered_at DESC LIMIT 1",[ruleId,new Date(now.getTime()-ALERT_COOLDOWN_MS)]);
+      if(recent.rowCount) { await client.query("COMMIT"); return res.status(201).json({id,watchlistId,price,previousPrice:previous,delta,deltaPercent,alerts:events,alert:Boolean(events.length),duplicate:false}); }
+      const bucketStart=now;
       const pseudoRule=await client.query(
         "SELECT id FROM alert_rules WHERE watchlist_id=$1 AND user_id=$2 AND rule_type='target_price' AND threshold=$3 LIMIT 1",
         [watchlistId,userId,threshold]
