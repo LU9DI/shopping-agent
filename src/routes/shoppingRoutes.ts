@@ -13,7 +13,7 @@ const pagination=(q:any)=>{
   return {limit,offset};
 };
 
-function transition(ruleType:string,previous:number|null,current:number,threshold:number|null,previousDeltaPercent:number|null){
+export function transition(ruleType:string,previous:number|null,current:number,threshold:number|null,previousDeltaPercent:number|null){
   if(previous===null||threshold===null)return {triggered:false,reason:"no_previous_or_threshold"};
   if(ruleType==="target_price"||ruleType==="below_budget"){
     const crossed=previous>threshold&&current<=threshold;
