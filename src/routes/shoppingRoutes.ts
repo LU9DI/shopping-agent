@@ -54,7 +54,7 @@ router.post("/:watchlistId",requireAuth,async(req,res)=>{
 
     client=await db.connect();
     await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))",[watchlistId]);
+    // IMPORTANT: every alert_events INSERT must stay inside this transaction and behind this resource lock; do not bypass this flow without preserving the sliding-cooldown invariant.\n    await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))",["shopping-alert",watchlistId]);
 
     const previousResult=await client.query(
       "SELECT id,price,merchant,currency,checked_at,delta_percent FROM price_history WHERE watchlist_id=$1 ORDER BY checked_at DESC LIMIT 1",
