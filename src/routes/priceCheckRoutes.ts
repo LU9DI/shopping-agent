@@ -11,7 +11,7 @@ router.post("/",requireAuth,async(req,res)=>{
     if(!idem||idem.length>200)return res.status(400).json({error:"invalid idempotency key"});
     const reservation=await reserveIdempotency(userId,"watchlist.create",idem);
     if(reservation?.replay)return res.status(reservation.statusCode).json(reservation.response);
-    if(reservation?.inProgress)return res.status(409).json({error:"request already in progress"});
+    if(reservation && "inProgress" in reservation && reservation.inProgress)return res.status(409).json({error:"request already in progress"});
     const result=await withEntitlementLock(userId,"watchlists",async(client)=>{
       const {name,query,budget,targetPrice,currency="BRL"}=req.body||{};
       if(typeof name!=="string"||!name.trim()||name.trim().length>200||typeof query!=="string"||!query.trim()||query.trim().length>500)throw new Error("invalid input");
