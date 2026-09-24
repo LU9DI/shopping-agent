@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { initDb } from "../core/db.js";
 import { requireAuth } from "../middleware/auth.js";
-import { audit, getEntitlement } from "../core/platformGovernance.js";
+import { audit, EntitlementError, getEntitlement } from "../core/platformGovernance.js";
 const router=Router();
 const MAX_WATCHLISTS_PER_USER=100;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;const CURRENCIES=new Set(["BRL","USD","EUR","GBP","CAD","AUD","JPY","CNY"]);const money=(v:unknown)=>v==null?null:(typeof v==="number"&&Number.isFinite(v)&&v>=0&&v<=1_000_000_000?Math.round(v*100)/100:undefined);const pagination=(q:any)=>{const limit=Math.min(Math.max(Number.parseInt(String(q.limit??"20"),10)||20,1),100);const offset=Math.min(Math.max(Number.parseInt(String(q.offset??"0"),10)||0,0),100000);return {limit,offset};};
