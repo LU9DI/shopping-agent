@@ -1,0 +1,24 @@
+name: Supabase heartbeat
+
+on:
+  schedule:
+    - cron: "17 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate database activity
+        env:
+          SUPABASE_URL: https://ivbxxululomugvviwuje.supabase.co
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_hpp28Uc48qF31jl_lEBkCw_thODonNJ
+        run: |
+          set -euo pipefail
+          response="$(curl --fail-with-body --silent --show-error \
+            -X POST "$SUPABASE_URL/rest/v1/rpc/shopping_agent_heartbeat" \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Content-Type: application/json" \
+            --data '{}')"
+          echo "Supabase heartbeat: $response"
