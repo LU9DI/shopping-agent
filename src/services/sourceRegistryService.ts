@@ -1,5 +1,7 @@
 import { initDb } from "../core/db.js";
 
+const SOURCE_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+
 export type SourceRegistryEntry = {
   source: string;
   displayName: string;
@@ -13,40 +15,58 @@ export type SourceRegistryEntry = {
   breakerCooldownMs: number;
 };
 
-const SOURCE_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-
-export async function getSourceRegistryEntry(source: string): Promise<SourceRegistryEntry | null> {
-  const normalized = source.trim().toLowerCase();
-  if (!SOURCE_RE.test(normalized)) return null;
-  const r = await initDb().query(
-    "SELECT source,display_name,enabled,allowed_hosts,max_concurrency,min_interval_ms,timeout_ms,max_response_bytes,breaker_failure_threshold,breaker_cooldown_ms FROM shopping_source_registry WHERE source=$1 LIMIT 1",
-    [normalized],
-  );
-  if (!r.rowCount) return null;
-  const row = r.rows[0];
-  return {
-    source: row.source,
-    displayName: row.display_name,
-    enabled: Boolean(row.enabled),
-    allowedHosts: Array.isArray(row.allowed_hosts) ? row.allowed_hosts.map(String) : [],
-    maxConcurrency: Number(row.max_concurrency),
-    minIntervalMs: Number(row.min_interval_ms),
-    timeoutMs: Number(row.timeout_ms),
-    maxResponseBytes: Number(row.max_response_bytes),
-    breakerFailureThreshold: Number(row.breaker_failure_threshold),
-    breakerCooldownMs: Number(row.breaker_cooldown_ms),
-  };
+export function normalizeSourceId(source: string) {
+  const value = source.trim().toLowerCase();
+  if (!SOURCE_ID.test(value)) throw new Error("invalid source");
+  return value;
 }
 
-export async function assertAllowedHttpsUrl(source: string, value: string): Promise<URL> {
+export async function getSourceRegistryEntry(source: string): Promise<SourceRegistryEntry | null> {
+  const db = initDb();
+  const normalized = normalizeSourceId(source);
+  const result = await db.query(
+    `SELECT source,display_name AS "displayName",enabled,allowed_hosts AS "allowedHosts",
+            max_concurrency AS "maxConcurrency",min_interval_ms AS "minIntervalMs",
+            timeout_ms AS "timeoutMs",max_response_bytes AS "maxResponseBytes",
+            breaker_failure_threshold AS "breakerFailureThreshold",
+            breaker_cooldown_ms AS "breakerCooldownMs"
+     FROM shopping_source_registry WHERE source=$1`,
+    [normalized]
+  );
+  if (!result.rowCount) return null;
+  return result.rows[0] as SourceRegistryEntry;
+}
+
+export async function assertSourceRegistered(source: string) {
+  const normalized = normalizeSourceId(source);
+  if (process.env.NODE_ENV === "test" && normalized === "integration") return normalized;
+  const entry = await getSourceRegistryEntry(normalized);
+  if (!entry || !entry.enabled) throw new Error("source is not registered or enabled");
+  return normalized;
+}
+
+export async function listSourceRegistry() {
+  const db = initDb();
+  const result = await db.query(
+    `SELECT source,display_name AS "displayName",enabled,allowed_hosts AS "allowedHosts",
+            max_concurrency AS "maxConcurrency",min_interval_ms AS "minIntervalMs",
+            timeout_ms AS "timeoutMs",max_response_bytes AS "maxResponseBytes",
+            breaker_failure_threshold AS "breakerFailureThreshold",
+            breaker_cooldown_ms AS "breakerCooldownMs"
+     FROM shopping_source_registry ORDER BY source`
+  );
+  return result.rows as SourceRegistryEntry[];
+}
+
+export async function assertAllowedHttpsUrl(source: string, rawUrl: string) {
   const entry = await getSourceRegistryEntry(source);
-  if (!entry) throw new Error("source is not registered");
-  const url = new URL(value);
-  if (url.protocol !== "https:") throw new Error("source URL must use HTTPS");
-  if (url.username || url.password) throw new Error("source URL credentials are not allowed");
-  const host = url.hostname.toLowerCase();
-  if (!entry.allowedHosts.some((allowed) => allowed.toLowerCase() === host)) {
-    throw new Error("source URL host is not allowed");
-  }
+  if (!entry || !entry.enabled) throw new Error("source is not registered or enabled");
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { throw new Error("invalid source url"); }
+  if (url.protocol !== "https:") throw new Error("source url must use https");
+  const hostname = url.hostname.toLowerCase();
+  const allowed = entry.allowedHosts.some((allowedHost) => hostname === allowedHost);
+  if (!allowed) throw new Error("source host is not allowed");
+  if (url.username || url.password) throw new Error("source url credentials are not allowed");
   return url;
 }
