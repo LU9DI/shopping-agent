@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { initDb, closeDb } from "../src/core/db.js";
 import { runPriceCheckWorkerOnce } from "../src/services/priceCheckWorkerService.js";
+import { getPriceWorkerWatchdogStatus, registerPriceWorker, stopPriceWorker, touchPriceWorker } from "../src/services/priceMonitoringService.js";
 
 const integrationEnabled = process.env.RUN_DB_INTEGRATION === "1";
 
@@ -159,6 +160,50 @@ test("worker recovers stale claims and respects the attempt ceiling", { skip: !i
     assert.equal(job.rows[0].last_error_code, "WORKER_CLAIM_EXPIRED");
   } finally {
     await db.query("DELETE FROM app_users WHERE id=$1", [userId]);
+    await closeDb();
+  }
+});
+
+
+
+test("worker heartbeat lifecycle is observable and stale workers are detected", { skip: !integrationEnabled }, async () => {
+  const db = initDb();
+  const workerId = `heartbeat-worker-${randomUUID()}`;
+  try {
+    await registerPriceWorker(workerId);
+    let row = await db.query(
+      "SELECT status,last_seen_at,last_batch_at,last_error FROM shopping_price_workers WHERE worker_id=$1",
+      [workerId],
+    );
+    assert.equal(row.rows[0].status, "active");
+    assert.equal(row.rows[0].last_batch_at, null);
+
+    await touchPriceWorker(workerId, new Date(), "x".repeat(1000));
+    row = await db.query(
+      "SELECT status,last_batch_at,last_error FROM shopping_price_workers WHERE worker_id=$1",
+      [workerId],
+    );
+    assert.equal(row.rows[0].status, "active");
+    assert.ok(row.rows[0].last_batch_at);
+    assert.equal(row.rows[0].last_error.length, 500);
+
+    await db.query(
+      "UPDATE shopping_price_workers SET last_seen_at=now()-interval '3 minutes' WHERE worker_id=$1",
+      [workerId],
+    );
+    const stale = await getPriceWorkerWatchdogStatus(2 * 60_000);
+    assert.equal(stale.stale >= 1, true);
+    assert.equal(stale.healthy, false);
+
+    await stopPriceWorker(workerId, "worker stopped");
+    row = await db.query(
+      "SELECT status,last_error FROM shopping_price_workers WHERE worker_id=$1",
+      [workerId],
+    );
+    assert.equal(row.rows[0].status, "stopped");
+    assert.equal(row.rows[0].last_error, "worker stopped");
+  } finally {
+    await db.query("DELETE FROM shopping_price_workers WHERE worker_id=$1", [workerId]);
     await closeDb();
   }
 });
