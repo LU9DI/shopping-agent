@@ -8,11 +8,6 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": [
-    "**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "tests/price-alert-transition.test.ts"
-  ]
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
 }
