@@ -10,7 +10,8 @@
     "build": "tsc --noEmit",
     "check": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "worker": "tsx price-worker.ts"
+    "worker": "tsx price-worker.ts",
+    "worker:once": "tsx price-worker-once.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
