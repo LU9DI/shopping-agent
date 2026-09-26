@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx scripts/migrate.ts && tsx server.ts",
+    "migrate": "tsx scripts/migrate.ts",
     "build": "tsc --noEmit",
     "check": "tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "worker": "tsx price-worker.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
