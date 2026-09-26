@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createProductionSourceAdapterResolver } from "./src/services/sourceAdapters.js";
+import { registerPriceWorker, stopPriceWorker } from "./src/services/priceMonitoringService.js";
 import { runPriceCheckWorkerOnce } from "./src/services/priceCheckWorkerService.js";
 import { closeDb } from "./src/core/db.js";
 
@@ -9,6 +10,8 @@ if (process.env.PRICE_WORKER_ENABLED !== "true") {
 
 const batchSize = Number(process.env.PRICE_WORKER_BATCH_SIZE || 10);
 const workerId = process.env.PRICE_WORKER_ID?.trim() || `price-cron-${randomUUID()}`;
+
+await registerPriceWorker(workerId);
 
 try {
   const result = await runPriceCheckWorkerOnce(
@@ -26,6 +29,7 @@ try {
   }));
   process.exitCode = 1;
 } finally {
+  await stopPriceWorker(workerId).catch((error) => console.error(JSON.stringify({ event: "price_worker_once.worker_stop_failed", workerId, error: error instanceof Error ? error.message : "unknown error" })));
   await closeDb().catch((error) => {
     console.error(JSON.stringify({
       event: "price_worker_once.db_close_failed",
