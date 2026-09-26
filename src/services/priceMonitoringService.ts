@@ -62,10 +62,7 @@ export async function finishPriceCheck(jobId:string,workerId:string,outcome:Pric
     const errorCode=outcome.ok?null:normalizeError(outcome.errorCode);
     const errorMessage=outcome.ok?null:normalizeError(outcome.errorMessage||outcome.errorCode);
     let status:"succeeded"|"failed"|"queued"|"dead";
-    if(outcome.ok) status="succeeded";
-    else if(outcome.retryable===false) status="failed";
-    else if(attempts>=MAX_SOURCE_ATTEMPTS) status="dead";
-    else status="queued";
+    if(outcome.ok) status="succeeded"; else if(outcome.retryable===false) status="failed"; else if(attempts>=MAX_SOURCE_ATTEMPTS) status="dead"; else status="queued";
     await client.query(`UPDATE shopping_check_jobs SET status=$2,attempts=$3,attempt_count=$3,
       next_attempt_at=CASE WHEN $2='queued' THEN now()+($4 * interval '1 millisecond') ELSE next_attempt_at END,
       claimed_at=NULL,claimed_by=NULL,locked_at=NULL,last_error=$5,last_error_code=$6,last_error_message=$7,updated_at=now()
@@ -98,7 +95,7 @@ export async function getPriceMonitoringMetrics() {
   const [checks,alerts,sources,jobs]=await Promise.all([
     db.query("SELECT COUNT(*)::int AS total,COUNT(*) FILTER (WHERE success)::int AS success,COUNT(*) FILTER (WHERE NOT success)::int AS failed,COALESCE(ROUND(AVG(latency_ms))::int,0) AS avg_latency_ms FROM shopping_source_metrics"),
     db.query("SELECT COUNT(*)::int AS total FROM shopping_price_alerts"),
-    db.query("SELECT source,COUNT(*)::int AS checks,COUNT(*) FILTER (WHERE success)::int AS success,COUNT(*) FILTER (WHERE NOT success)::int AS failed,COALESCE(ROUND(AVG(latency_ms))::int,0)::int AS avg_latency_ms,COALESCE(MAX(attempts),0)::int AS max_attempts FROM shopping_source_metrics GROUP BY source ORDER BY checks DESC"),
+    db.query("SELECT r.source,r.display_name,r.enabled,s.state,s.consecutive_failures,s.in_flight,s.retry_at,s.next_allowed_at,COUNT(m.*)::int AS checks,COUNT(m.*) FILTER (WHERE m.success)::int AS success,COUNT(m.*) FILTER (WHERE NOT m.success)::int AS failed,COALESCE(ROUND(AVG(m.latency_ms))::int,0)::int AS avg_latency_ms,COALESCE(MAX(m.attempts),0)::int AS max_attempts FROM shopping_source_registry r LEFT JOIN shopping_source_state s ON s.source=r.source LEFT JOIN shopping_source_metrics m ON m.source=r.source GROUP BY r.source,r.display_name,r.enabled,s.state,s.consecutive_failures,s.in_flight,s.retry_at,s.next_allowed_at ORDER BY checks DESC,r.source"),
     db.query("SELECT COUNT(*) FILTER (WHERE status='queued')::int AS queued,COUNT(*) FILTER (WHERE status='running')::int AS running,COUNT(*) FILTER (WHERE status='succeeded')::int AS succeeded,COUNT(*) FILTER (WHERE status='failed')::int AS failed,COUNT(*) FILTER (WHERE status='dead')::int AS dead FROM shopping_check_jobs")
   ]);
   return {checks:checks.rows[0],alerts:alerts.rows[0],sources:sources.rows,jobs:jobs.rows[0]};
