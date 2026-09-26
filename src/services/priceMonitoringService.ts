@@ -215,9 +215,32 @@ export async function requeueStalePriceChecks(staleAfterMs = 10 * 60_000) {
   return result.rows;
 }
 
+export async function getPriceWorkerWatchdogStatus(staleAfterMs = 2 * 60_000) {
+  if (!Number.isFinite(staleAfterMs) || staleAfterMs < 30_000 || staleAfterMs > 60 * 60_000) {
+    throw new Error("invalid worker watchdog threshold");
+  }
+  const db = initDb();
+  const result = await db.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE status='active' AND last_seen_at >= now() - ($1 * interval '1 millisecond'))::int AS active,
+       COUNT(*) FILTER (WHERE status='active' AND last_seen_at < now() - ($1 * interval '1 millisecond'))::int AS stale,
+       COUNT(*) FILTER (WHERE status='stopped')::int AS stopped
+     FROM shopping_price_workers`,
+    [staleAfterMs],
+  );
+  const row = result.rows[0];
+  return {
+    active: Number(row.active),
+    stale: Number(row.stale),
+    stopped: Number(row.stopped),
+    healthy: Number(row.stale) === 0,
+    staleAfterMs,
+  };
+}
+
 export async function getPriceMonitoringMetrics() {
   const db = initDb();
-  const [checks, alerts, sources, jobs] = await Promise.all([
+  const [checks, alerts, sources, jobs, workers] = await Promise.all([
     db.query(
       "SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE success)::int AS success, COUNT(*) FILTER (WHERE NOT success)::int AS failed, COALESCE(ROUND(AVG(latency_ms))::int,0) AS avg_latency_ms FROM shopping_source_metrics"
     ),
@@ -227,9 +250,12 @@ export async function getPriceMonitoringMetrics() {
     ),
     db.query(
       "SELECT COUNT(*) FILTER (WHERE status='queued')::int AS queued, COUNT(*) FILTER (WHERE status='running')::int AS running, COUNT(*) FILTER (WHERE status='succeeded')::int AS succeeded, COUNT(*) FILTER (WHERE status='failed')::int AS failed, COUNT(*) FILTER (WHERE status='dead')::int AS dead, COUNT(*) FILTER (WHERE status='running' AND claimed_at < now() - interval '10 minutes')::int AS stale_running FROM shopping_check_jobs"
+    ),
+    db.query(
+      "SELECT COUNT(*) FILTER (WHERE status='active' AND last_seen_at >= now() - interval '2 minutes')::int AS active, COUNT(*) FILTER (WHERE status='active' AND last_seen_at < now() - interval '2 minutes')::int AS stale, COUNT(*) FILTER (WHERE status='stopped')::int AS stopped FROM shopping_price_workers"
     )
   ]);
-  return { checks: checks.rows[0], alerts: alerts.rows[0], sources: sources.rows, jobs: jobs.rows[0] };
+  return { checks: checks.rows[0], alerts: alerts.rows[0], sources: sources.rows, jobs: jobs.rows[0], workers: workers.rows[0] };
 }
 
 export async function getPriceCheckWorkerHealth() {
