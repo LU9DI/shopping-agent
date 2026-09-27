@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS shopping_watchlists (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_shopping_watchlists_user ON shopping_watchlists(user_id,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS shopping_watchlists_id_user_unique ON shopping_watchlists(id,user_id);
 
 CREATE TABLE IF NOT EXISTS price_history (
   id UUID PRIMARY KEY,
