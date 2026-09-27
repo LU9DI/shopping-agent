@@ -72,6 +72,11 @@ export async function stopPriceWorker(workerId: string, lastError?: string) {
 export async function enqueuePriceCheck(input: PriceJobInput) {
   const source = await assertSourceRegistered(input.source);
   const db = initDb();
+  const ownership = await db.query(
+    "SELECT 1 FROM shopping_watchlists WHERE id=$1 AND user_id=$2 AND active=true",
+    [input.watchlistId, input.userId],
+  );
+  if (!ownership.rowCount) throw new Error("watchlist not found or not owned by user");
   const windowStartedAt = getJobWindow(input.checkedAt);
   const result = await db.query(
     `INSERT INTO shopping_check_jobs
