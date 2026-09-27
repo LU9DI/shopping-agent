@@ -231,7 +231,7 @@ export async function requeueStalePriceChecks(staleAfterMs = 10 * 60_000) {
          SELECT id, attempt_count
          FROM shopping_check_jobs
          WHERE status='running'
-           AND lease_expires_at < now()
+           AND lease_expires_at < now() - ($1 * interval '1 millisecond')
          FOR UPDATE SKIP LOCKED
        )
        UPDATE shopping_check_jobs j
