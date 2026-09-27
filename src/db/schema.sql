@@ -30,6 +30,19 @@ CREATE TABLE IF NOT EXISTS shopping_watchlists (
 );
 CREATE INDEX IF NOT EXISTS idx_shopping_watchlists_user ON shopping_watchlists(user_id,created_at DESC);
 
+CREATE TABLE IF NOT EXISTS price_history (
+  id UUID PRIMARY KEY,
+  watchlist_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  merchant TEXT,
+  price NUMERIC(14,2) NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'BRL',
+  checked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  FOREIGN KEY (watchlist_id, user_id) REFERENCES shopping_watchlists(id, user_id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS price_history_id_user_unique ON price_history(id,user_id);
+CREATE INDEX IF NOT EXISTS idx_price_history_watchlist_checked ON price_history(watchlist_id,checked_at DESC);
+
 CREATE TABLE IF NOT EXISTS shopping_price_checks (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
