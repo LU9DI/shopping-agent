@@ -14,6 +14,14 @@ import { initDb } from "../core/db.js";
 
 export type SourceAdapterResolver = (source: string) => SourceAdapterWithParser | null;
 
+async function safeTouchPriceWorker(workerId: string, lastBatchAt?: Date, lastError?: string) {
+  try {
+    await touchPriceWorker(workerId, lastBatchAt, lastError);
+  } catch (error) {
+    console.error("price worker heartbeat update failed", error);
+  }
+}
+
 async function persistPriceObservation(
   job: { id: string; user_id: string; watchlist_id: string },
   observation: PriceObservation,
@@ -117,13 +125,13 @@ export async function runPriceCheckWorkerOnce(workerId: string, resolveAdapter: 
       if (result.status === "succeeded") succeeded += 1;
       else if (result.status === "dead") dead += 1;
       else if (result.status === "failed") failed += 1;
-      await touchPriceWorker(workerId, new Date());
+      await safeTouchPriceWorker(workerId, new Date());
     }
 
-    await touchPriceWorker(workerId, new Date());
+    await safeTouchPriceWorker(workerId, new Date());
     return { claimed: jobs.length, succeeded, failed, dead, staleRecovered: stale.filter((job) => job.status === "queued" || job.status === "dead").length };
   } catch (error) {
-    await touchPriceWorker(workerId, undefined, error instanceof Error ? error.message : "worker execution failed").catch(() => {});
+    await safeTouchPriceWorker(workerId, undefined, error instanceof Error ? error.message : "worker execution failed");
     throw error;
   }
 }
