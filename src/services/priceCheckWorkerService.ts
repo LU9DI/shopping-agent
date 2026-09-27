@@ -3,6 +3,7 @@ import {
   claimDuePriceChecks,
   registerPriceWorker,
   finishPriceCheck,
+  renewPriceCheckLease,
   getPriceCheckWorkerHealth,
   requeueStalePriceChecks,
   stopPriceWorker,
@@ -103,8 +104,14 @@ export async function runPriceCheckWorkerOnce(workerId: string, resolveAdapter: 
     const startedAt = Date.now();
     let outcome: PriceJobOutcome;
     try {
-      const adapter = resolveAdapter(job.source);
-      if (!adapter) {
+      const leaseTimer = setInterval(() => {
+        void renewPriceCheckLease(job.id, workerId, String(job.claim_token)).catch((error) => {
+          console.error("price check lease renewal failed", error);
+        });
+      }, 60_000);
+      try {
+        const adapter = resolveAdapter(job.source);
+        if (!adapter) {
         outcome = {
           ok: false, latencyMs: Date.now() - startedAt,
           errorCode: "SOURCE_ADAPTER_UNAVAILABLE",
