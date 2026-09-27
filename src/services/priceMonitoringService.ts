@@ -186,33 +186,50 @@ export async function finishPriceCheck(jobId: string, workerId: string, outcome:
 }
 
 export async function requeueStalePriceChecks(staleAfterMs = 10 * 60_000) {
+  if (!Number.isFinite(staleAfterMs) || staleAfterMs < 30_000 || staleAfterMs > 60 * 60_000) {
+    throw new Error("invalid stale claim threshold");
+  }
   const db = initDb();
-  const result = await db.query(
-    `WITH stale AS (
-       SELECT id, attempt_count
-       FROM shopping_check_jobs
-       WHERE status='running'
-         AND claimed_at < now() - ($1 * interval '1 millisecond')
-       FOR UPDATE SKIP LOCKED
-     )
-     UPDATE shopping_check_jobs j
-     SET status=CASE WHEN j.attempt_count + 1 >= $2 THEN 'dead' ELSE 'queued' END,
-         attempts=j.attempt_count + 1,
-         attempt_count=j.attempt_count + 1,
-         next_attempt_at=CASE WHEN j.attempt_count + 1 >= $2 THEN j.next_attempt_at ELSE now() END,
-         claimed_at=NULL,
-         claimed_by=NULL,
-         locked_at=NULL,
-         last_error='worker_claim_expired',
-         last_error_code='WORKER_CLAIM_EXPIRED',
-         last_error_message='worker claim expired before completion',
-         updated_at=now()
-     FROM stale
-     WHERE j.id=stale.id
-     RETURNING j.id,j.status,j.attempt_count`,
-    [staleAfterMs, MAX_SOURCE_ATTEMPTS]
-  );
-  return result.rows;
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    // Serialize stale-claim recovery across workers/watchdogs. The row locks below
+    // still protect the individual jobs, while the advisory lock makes recovery
+    // deterministic when multiple watchdogs wake up at the same time.
+    await client.query("SELECT pg_advisory_xact_lock($1)", [734921]);
+    const result = await client.query(
+      `WITH stale AS (
+         SELECT id, attempt_count
+         FROM shopping_check_jobs
+         WHERE status='running'
+           AND claimed_at < now() - ($1 * interval '1 millisecond')
+         FOR UPDATE SKIP LOCKED
+       )
+       UPDATE shopping_check_jobs j
+       SET status=CASE WHEN j.attempt_count + 1 >= $2 THEN 'dead' ELSE 'queued' END,
+           attempts=j.attempt_count + 1,
+           attempt_count=j.attempt_count + 1,
+           next_attempt_at=CASE WHEN j.attempt_count + 1 >= $2 THEN j.next_attempt_at ELSE now() END,
+           claimed_at=NULL,
+           claimed_by=NULL,
+           locked_at=NULL,
+           last_error='worker_claim_expired',
+           last_error_code='WORKER_CLAIM_EXPIRED',
+           last_error_message='worker claim expired before completion',
+           updated_at=now()
+       FROM stale
+       WHERE j.id=stale.id
+       RETURNING j.id,j.status,j.attempt_count`,
+      [staleAfterMs, MAX_SOURCE_ATTEMPTS]
+    );
+    await client.query("COMMIT");
+    return result.rows;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getPriceWorkerWatchdogStatus(staleAfterMs = 2 * 60_000) {
