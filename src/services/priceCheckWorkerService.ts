@@ -140,9 +140,6 @@ export async function runPriceCheckWorkerOnce(workerId: string, resolveAdapter: 
     }
 
     await safeTouchPriceWorker(workerId, new Date());
-    }
-
-    await safeTouchPriceWorker(workerId, new Date());
     return { claimed: jobs.length, succeeded, failed, dead, staleRecovered: stale.filter((job) => job.status === "queued" || job.status === "dead").length };
   } catch (error) {
     await safeTouchPriceWorker(workerId, undefined, error instanceof Error ? error.message : "worker execution failed");
