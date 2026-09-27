@@ -235,10 +235,10 @@ export async function requeueStalePriceChecks(staleAfterMs = 10 * 60_000) {
          FOR UPDATE SKIP LOCKED
        )
        UPDATE shopping_check_jobs j
-       SET status=CASE WHEN j.attempt_count + 1 >= $2 THEN 'dead' ELSE 'queued' END,
-           attempts=j.attempt_count + 1,
-           attempt_count=j.attempt_count + 1,
-           next_attempt_at=CASE WHEN j.attempt_count + 1 >= $2 THEN j.next_attempt_at ELSE now() END,
+       SET status=CASE WHEN j.attempt_count >= $2 THEN 'dead' ELSE 'queued' END,
+           attempts=j.attempt_count,
+           attempt_count=j.attempt_count,
+           next_attempt_at=CASE WHEN j.attempt_count >= $2 THEN j.next_attempt_at ELSE now() END,
            claimed_at=NULL,
            claimed_by=NULL,
            claim_token=NULL,
