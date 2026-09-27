@@ -101,38 +101,45 @@ export async function runPriceCheckWorkerOnce(workerId: string, resolveAdapter: 
 
   try {
     for (const job of jobs) {
-    const startedAt = Date.now();
-    let outcome: PriceJobOutcome;
-    try {
+      const startedAt = Date.now();
+      let outcome: PriceJobOutcome;
       const leaseTimer = setInterval(() => {
         void renewPriceCheckLease(job.id, workerId, String(job.claim_token)).catch((error) => {
           console.error("price check lease renewal failed", error);
         });
       }, 60_000);
       try {
-        const adapter = resolveAdapter(job.source);
-        if (!adapter) {
-        outcome = {
-          ok: false, latencyMs: Date.now() - startedAt,
-          errorCode: "SOURCE_ADAPTER_UNAVAILABLE",
-          errorMessage: `no adapter registered for source ${job.source}`,
-          retryable: false,
-        };
-      } else {
-        const execution = await executeSourceAdapter(adapter, job.product_key);
-        const observation = adapter.parseResponse(execution);
-        await persistPriceObservation(job, observation);
-        outcome = { ok: true, latencyMs: Date.now() - startedAt };
+        try {
+          const adapter = resolveAdapter(job.source);
+          if (!adapter) {
+            outcome = {
+              ok: false,
+              latencyMs: Date.now() - startedAt,
+              errorCode: "SOURCE_ADAPTER_UNAVAILABLE",
+              errorMessage: "no adapter registered for source " + job.source,
+              retryable: false,
+            };
+          } else {
+            const execution = await executeSourceAdapter(adapter, job.product_key);
+            const observation = adapter.parseResponse(execution);
+            await persistPriceObservation(job, observation);
+            outcome = { ok: true, latencyMs: Date.now() - startedAt };
+          }
+        } catch (error) {
+          outcome = { ok: false, latencyMs: Date.now() - startedAt, ...classifyAdapterError(error) };
+        }
+      } finally {
+        clearInterval(leaseTimer);
       }
-    } catch (error) {
-      outcome = { ok: false, latencyMs: Date.now() - startedAt, ...classifyAdapterError(error) };
-    }
 
-    const result = await finishPriceCheck(job.id, workerId, outcome);
+      const result = await finishPriceCheck(job.id, workerId, String(job.claim_token), outcome);
       if (result.status === "succeeded") succeeded += 1;
       else if (result.status === "dead") dead += 1;
       else if (result.status === "failed") failed += 1;
       await safeTouchPriceWorker(workerId, new Date());
+    }
+
+    await safeTouchPriceWorker(workerId, new Date());
     }
 
     await safeTouchPriceWorker(workerId, new Date());
