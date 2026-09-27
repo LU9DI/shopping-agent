@@ -110,6 +110,8 @@ export async function claimDuePriceChecks(workerId: string, limit = 10) {
        SET status='running',
            claimed_at=now(),
            claimed_by=$3,
+           claim_token=gen_random_uuid(),
+           lease_expires_at=now() + interval '10 minutes',
            locked_at=now(),
            updated_at=now()
        FROM picked
