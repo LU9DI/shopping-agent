@@ -115,7 +115,7 @@ export async function claimDuePriceChecks(workerId: string, limit = 10) {
        FROM picked
        WHERE j.id=picked.id
        RETURNING j.id,j.user_id,j.watchlist_id,j.product_key,j.source,
-                 j.attempts,j.attempt_count,j.next_attempt_at,j.claimed_at,j.claimed_by`,
+                 j.attempts,j.attempt_count,j.next_attempt_at,j.claimed_at,j.claimed_by,j.claim_token,j.lease_expires_at`,
       [MAX_SOURCE_ATTEMPTS, normalizeLimit(limit), normalizeWorkerId(workerId)]
     );
     await client.query("COMMIT");
@@ -128,21 +128,41 @@ export async function claimDuePriceChecks(workerId: string, limit = 10) {
   }
 }
 
-export async function finishPriceCheck(jobId: string, workerId: string, outcome: PriceJobOutcome) {
+export async function renewPriceCheckLease(jobId: string, workerId: string, claimToken: string, leaseMs = 10 * 60_000) {
+  const normalizedWorkerId = normalizeWorkerId(workerId);
+  const normalizedClaimToken = claimToken.trim();
+  if (!normalizedClaimToken || normalizedClaimToken.length > 100) throw new Error("claimToken is required");
+  if (!Number.isFinite(leaseMs) || leaseMs < 30_000 || leaseMs > 60 * 60_000) throw new Error("invalid lease duration");
+  const db = initDb();
+  const result = await db.query(
+    `UPDATE shopping_check_jobs
+     SET lease_expires_at=now()+($4 * interval '1 millisecond'), locked_at=now(), updated_at=now()
+     WHERE id=$1 AND status='running' AND claimed_by=$2 AND claim_token=$3 AND lease_expires_at >= now()
+     RETURNING id`,
+    [jobId, normalizedWorkerId, normalizedClaimToken, leaseMs],
+  );
+  if (!result.rowCount) throw new Error("price check lease renewal rejected");
+  return true;
+}
+
+export async function finishPriceCheck(jobId: string, workerId: string, claimToken: string, outcome: PriceJobOutcome) {
   const db = initDb();
   const client = await db.connect();
   const normalizedWorkerId = normalizeWorkerId(workerId);
+  const normalizedClaimToken = claimToken.trim();
+  if (!normalizedClaimToken || normalizedClaimToken.length > 100) throw new Error("claimToken is required");
   try {
     await client.query("BEGIN");
     const job = await client.query(
-      "SELECT id,user_id,watchlist_id,product_key,source,attempts,attempt_count,status,claimed_by FROM shopping_check_jobs WHERE id=$1 FOR UPDATE",
+      "SELECT id,user_id,watchlist_id,product_key,source,attempts,attempt_count,status,claimed_by,claim_token,lease_expires_at FROM shopping_check_jobs WHERE id=$1 FOR UPDATE",
       [jobId]
     );
     if (!job.rowCount) throw new Error("price check job not found");
 
     const row = job.rows[0];
     if (row.status !== "running") throw new Error("price check job is not running");
-    if (row.claimed_by !== normalizedWorkerId) throw new Error("price check job claim ownership mismatch");
+    if (row.claimed_by !== normalizedWorkerId || row.claim_token !== normalizedClaimToken) throw new Error("price check job claim ownership mismatch");
+    if (!row.lease_expires_at || new Date(row.lease_expires_at).getTime() <= Date.now()) throw new Error("price check job lease expired");
     const attempts = Number(row.attempt_count) + 1;
     const errorCode = outcome.ok ? null : normalizeError(outcome.errorCode);
     const errorMessage = outcome.ok ? null : normalizeError(outcome.errorMessage || outcome.errorCode);
@@ -166,6 +186,8 @@ export async function finishPriceCheck(jobId: string, workerId: string, outcome:
            next_attempt_at=CASE WHEN $2='queued' THEN now()+($4 * interval '1 millisecond') ELSE next_attempt_at END,
            claimed_at=NULL,
            claimed_by=NULL,
+           claim_token=NULL,
+           lease_expires_at=NULL,
            locked_at=NULL,
            last_error=$5,
            last_error_code=$6,
@@ -207,7 +229,7 @@ export async function requeueStalePriceChecks(staleAfterMs = 10 * 60_000) {
          SELECT id, attempt_count
          FROM shopping_check_jobs
          WHERE status='running'
-           AND claimed_at < now() - ($1 * interval '1 millisecond')
+           AND lease_expires_at < now()
          FOR UPDATE SKIP LOCKED
        )
        UPDATE shopping_check_jobs j
@@ -217,6 +239,8 @@ export async function requeueStalePriceChecks(staleAfterMs = 10 * 60_000) {
            next_attempt_at=CASE WHEN j.attempt_count + 1 >= $2 THEN j.next_attempt_at ELSE now() END,
            claimed_at=NULL,
            claimed_by=NULL,
+           claim_token=NULL,
+           lease_expires_at=NULL,
            locked_at=NULL,
            last_error='worker_claim_expired',
            last_error_code='WORKER_CLAIM_EXPIRED',
