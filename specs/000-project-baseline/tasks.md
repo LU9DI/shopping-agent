@@ -13,6 +13,7 @@
 
 ## Phase 3 — Product quality
 - [x] T014 Verify persistent price history, opportunity analytics, alerting, and worker safeguards.
+- [x] T015 Enforce watchlist ownership at the price-job service boundary, not only at the HTTP route.
 - [ ] T008 Verify public SEO/indexability surfaces and canonical URLs.
 - [ ] T009 Run a focused security review of outbound integrations and webhook/scheduler boundaries.
 - [x] T010 Verify production deployment/runtime behavior after each release.
