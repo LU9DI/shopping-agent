@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS price_history (
   price NUMERIC(14,2) NOT NULL,
   currency TEXT NOT NULL DEFAULT 'BRL',
   checked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  previous_price NUMERIC(14,2),
+  price_check_id UUID,
+  delta NUMERIC(14,2),
+  delta_percent NUMERIC(12,4),
   FOREIGN KEY (watchlist_id, user_id) REFERENCES shopping_watchlists(id, user_id) ON DELETE CASCADE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS price_history_id_user_unique ON price_history(id,user_id);
@@ -78,3 +82,6 @@ ALTER TABLE shopping_price_alerts ADD CONSTRAINT shopping_price_alerts_watchlist
 ALTER TABLE shopping_price_alerts DROP CONSTRAINT IF EXISTS shopping_price_alerts_price_check_user_fk;
 ALTER TABLE shopping_price_alerts ADD CONSTRAINT shopping_price_alerts_price_check_user_fk FOREIGN KEY (price_check_id,user_id) REFERENCES shopping_price_checks(id,user_id) ON DELETE CASCADE;
 CREATE UNIQUE INDEX IF NOT EXISTS shopping_price_alerts_price_check_unique ON shopping_price_alerts(price_check_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS shopping_check_jobs_claim_token_uidx ON shopping_check_jobs(claim_token) WHERE claim_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS shopping_check_jobs_lease_idx ON shopping_check_jobs(status,lease_expires_at) WHERE status='running';
