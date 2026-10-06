@@ -8,4 +8,25 @@ router.post("/",requireAuth,async(req,res)=>{try{const {name,query,budget,target
 router.get("/",requireAuth,async(req,res)=>{try{const {limit,offset}=pagination(req.query);const db=initDb();const r=await db.query("SELECT id,name,query,budget,target_price,currency,active,created_at FROM shopping_watchlists WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",[(req as any).userId,limit,offset]);const c=await db.query("SELECT COUNT(*)::int count FROM shopping_watchlists WHERE user_id=$1",[(req as any).userId]);res.json({watchlists:r.rows,pagination:{limit,offset,hasMore:offset+r.rows.length<Number(c.rows[0].count),total:Number(c.rows[0].count)}});}catch{res.status(500).json({error:"failed to load watchlists"});}});
 router.patch("/:id",requireAuth,async(req,res)=>{try{if(!UUID.test(String(req.params.id)))return res.status(400).json({error:"invalid watchlist id"});const body=req.body||{};if(body.active!==undefined&&typeof body.active!=="boolean")return res.status(400).json({error:"active must be boolean"});const b=money(body.budget),t=money(body.targetPrice);if(body.budget!==undefined&&b===undefined||body.targetPrice!==undefined&&t===undefined)return res.status(400).json({error:"invalid budget or targetPrice"});const r=await initDb().query("UPDATE shopping_watchlists SET active=COALESCE($1,active),budget=COALESCE($2,budget),target_price=COALESCE($3,target_price) WHERE id=$4 AND user_id=$5 RETURNING id,name,query,budget,target_price,currency,active",[body.active??null,b,t,req.params.id,(req as any).userId]);if(!r.rowCount)return res.status(404).json({error:"watchlist not found"});res.json({watchlist:r.rows[0]});}catch{res.status(500).json({error:"failed to update watchlist"});}});
 router.delete("/:id",requireAuth,async(req,res)=>{try{if(!UUID.test(String(req.params.id)))return res.status(400).json({error:"invalid watchlist id"});const r=await initDb().query("DELETE FROM shopping_watchlists WHERE id=$1 AND user_id=$2",[req.params.id,(req as any).userId]);if(!r.rowCount)return res.status(404).json({error:"watchlist not found"});res.status(204).end();}catch{res.status(500).json({error:"failed to delete watchlist"});}});
+router.get("/:id/decision",requireAuth,async(req,res)=>{try{
+ const id=String(req.params.id),uid=(req as any).userId;if(!UUID.test(id))return res.status(400).json({error:"invalid watchlist id"});
+ const db=initDb();
+ const w=await db.query("SELECT id,name,target_price,budget,currency FROM shopping_watchlists WHERE id=$1 AND user_id=$2",[id,uid]);
+ if(!w.rowCount)return res.status(404).json({error:"watchlist not found"});
+ const p=await db.query("SELECT price,merchant,checked_at FROM shopping_price_checks WHERE watchlist_id=$1 AND user_id=$2 ORDER BY checked_at DESC LIMIT 12",[id,uid]);
+ if(!p.rowCount)return res.json({watchlist:w.rows[0],status:"insufficient_data",confidence:"low",observations:0});
+ const latest=Number(p.rows[0].price),latestAt=new Date(p.rows[0].checked_at);
+ const ageHours=Math.max(0,(Date.now()-latestAt.getTime())/3600000);
+ const prices=p.rows.map((x:any)=>Number(x.price));
+ const min=Math.min(...prices),max=Math.max(...prices),avg=prices.reduce((a,b)=>a+b,0)/prices.length;
+ const spread=avg>0?(max-min)/avg:1;
+ const target=w.rows[0].target_price==null?null:Number(w.rows[0].target_price);
+ const budget=w.rows[0].budget==null?null:Number(w.rows[0].budget);
+ const stale=ageHours>48;
+ const confidence=stale?"low":prices.length>=10&&spread<=.1?"high":prices.length>=3&&spread<=.2?"medium":"low";
+ const status=stale?"stale_observation":target!=null&&latest<=target?"target_reached":budget!=null&&latest<=budget?"within_budget":"monitor";
+ const trend=p.length<2?"insufficient_data":prices[0]<prices[1]?"falling":prices[0]>prices[1]?"rising":"stable";
+ res.json({watchlist:w.rows[0],status,confidence,observations:p.length,latest:{price:latest,merchant:p[0].merchant,checkedAt:p[0].checked_at,ageHours:Math.round(ageHours*10)/10},trend,range:{min,max,average:Math.round(avg*100)/100,spreadPercent:Math.round(spread*10000)/100},targetPrice:target,budget,disclaimer:"Decision uses only recorded observations; stale observations are not treated as current market price and no purchase is executed."});
+}catch{res.status(500).json({error:"failed to calculate shopping decision"});}});
+
 export default router;
