@@ -82,6 +82,3 @@ ALTER TABLE shopping_price_alerts ADD CONSTRAINT shopping_price_alerts_watchlist
 ALTER TABLE shopping_price_alerts DROP CONSTRAINT IF EXISTS shopping_price_alerts_price_check_user_fk;
 ALTER TABLE shopping_price_alerts ADD CONSTRAINT shopping_price_alerts_price_check_user_fk FOREIGN KEY (price_check_id,user_id) REFERENCES shopping_price_checks(id,user_id) ON DELETE CASCADE;
 CREATE UNIQUE INDEX IF NOT EXISTS shopping_price_alerts_price_check_unique ON shopping_price_alerts(price_check_id);
-
-CREATE UNIQUE INDEX IF NOT EXISTS shopping_check_jobs_claim_token_uidx ON shopping_check_jobs(claim_token) WHERE claim_token IS NOT NULL;
-CREATE INDEX IF NOT EXISTS shopping_check_jobs_lease_idx ON shopping_check_jobs(status,lease_expires_at) WHERE status='running';
