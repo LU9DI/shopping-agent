@@ -26,7 +26,7 @@ router.get("/:id/decision",requireAuth,async(req,res)=>{try{
  const confidence=stale?"low":prices.length>=10&&spread<=.1?"high":prices.length>=3&&spread<=.2?"medium":"low";
  const status=stale?"stale_observation":target!=null&&latest<=target?"target_reached":budget!=null&&latest<=budget?"within_budget":"monitor";
  const trend=p.rowCount<2?"insufficient_data":prices[0]<prices[1]?"falling":prices[0]>prices[1]?"rising":"stable";
- res.json({watchlist:w.rows[0],status,confidence,observations:p.rowCount,latest:{price:latest,merchant:p[0].merchant,checkedAt:p[0].checked_at,ageHours:Math.round(ageHours*10)/10},trend,range:{min,max,average:Math.round(avg*100)/100,spreadPercent:Math.round(spread*10000)/100},targetPrice:target,budget,disclaimer:"Decision uses only recorded observations; stale observations are not treated as current market price and no purchase is executed."});
+ res.json({watchlist:w.rows[0],status,confidence,observations:p.rowCount,latest:{price:latest,merchant:p.rows[0].merchant,checkedAt:p.rows[0].checked_at,ageHours:Math.round(ageHours*10)/10},trend,range:{min,max,average:Math.round(avg*100)/100,spreadPercent:Math.round(spread*10000)/100},targetPrice:target,budget,disclaimer:"Decision uses only recorded observations; stale observations are not treated as current market price and no purchase is executed."});
 }catch{res.status(500).json({error:"failed to calculate shopping decision"});}});
 
 export default router;
