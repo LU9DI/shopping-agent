@@ -6,6 +6,7 @@ export function validateAlertThreshold(value: unknown, allowNull = false): Alert
   if ((value === null || value === undefined) && allowNull) return { ok: true, value: null };
   if (value === null || value === undefined || (typeof value === "string" && value.trim() === "") || typeof value === "boolean") return { ok: false, reason: "invalid threshold" };
   if (typeof value !== "number" && typeof value !== "string") return { ok: false, reason: "invalid threshold" };
+  if (typeof value === "string" && !/^[+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/.test(value.trim())) return { ok: false, reason: "invalid threshold" };
   const threshold = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(threshold) || threshold < 0) return { ok: false, reason: "invalid threshold" };
   return { ok: true, value: threshold };
