@@ -12,7 +12,7 @@ test("accepts finite non-negative thresholds including zero", () => {
 });
 
 test("rejects invalid thresholds and enabled values", () => {
-  for (const threshold of [-1, Infinity, NaN, "nope", null, "", "   ", "\\t\\n", true, [], {}]) assert.equal(validateAlertRulePatch({ threshold }).ok, false);
+  for (const threshold of [-1, Infinity, NaN, "nope", null, "", "   ", "\t\n", "0x10", "0b10", true, [], {}]) assert.equal(validateAlertRulePatch({ threshold }).ok, false);
   assert.equal(validateAlertRulePatch({ enabled: "false" }).ok, false);
 });
 
