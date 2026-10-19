@@ -4,7 +4,7 @@ export type AlertThresholdValidation = { ok: true; value: number | null } | { ok
 
 export function validateAlertThreshold(value: unknown, allowNull = false): AlertThresholdValidation {
   if ((value === null || value === undefined) && allowNull) return { ok: true, value: null };
-  if (value === null || value === undefined || value === "" || typeof value === "boolean") return { ok: false, reason: "invalid threshold" };
+  if (value === null || value === undefined || (typeof value === "string" && value.trim() === "") || typeof value === "boolean") return { ok: false, reason: "invalid threshold" };
   if (typeof value !== "number" && typeof value !== "string") return { ok: false, reason: "invalid threshold" };
   const threshold = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(threshold) || threshold < 0) return { ok: false, reason: "invalid threshold" };
