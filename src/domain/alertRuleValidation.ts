@@ -1,5 +1,15 @@
 export type AlertRulePatch = { enabled?: boolean; threshold?: number };
 export type AlertRulePatchValidation = { ok: true; patch: AlertRulePatch } | { ok: false; reason: string };
+export type AlertThresholdValidation = { ok: true; value: number | null } | { ok: false; reason: string };
+
+export function validateAlertThreshold(value: unknown, allowNull = false): AlertThresholdValidation {
+  if ((value === null || value === undefined) && allowNull) return { ok: true, value: null };
+  if (value === null || value === undefined || value === "" || typeof value === "boolean") return { ok: false, reason: "invalid threshold" };
+  if (typeof value !== "number" && typeof value !== "string") return { ok: false, reason: "invalid threshold" };
+  const threshold = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(threshold) || threshold < 0) return { ok: false, reason: "invalid threshold" };
+  return { ok: true, value: threshold };
+}
 
 export function validateAlertRulePatch(body: unknown): AlertRulePatchValidation {
   if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, reason: "invalid alert rule" };
@@ -10,10 +20,9 @@ export function validateAlertRulePatch(body: unknown): AlertRulePatchValidation 
     patch.enabled = input.enabled;
   }
   if (Object.prototype.hasOwnProperty.call(input, "threshold")) {
-    if (input.threshold === null || input.threshold === "" || typeof input.threshold === "boolean") return { ok: false, reason: "invalid threshold" };
-    const threshold = typeof input.threshold === "number" ? input.threshold : Number(input.threshold);
-    if (!Number.isFinite(threshold) || threshold < 0) return { ok: false, reason: "invalid threshold" };
-    patch.threshold = threshold;
+    const result = validateAlertThreshold(input.threshold);
+    if (!result.ok || result.value === null) return { ok: false, reason: "invalid threshold" };
+    patch.threshold = result.value;
   }
   if (Object.keys(patch).length === 0) return { ok: false, reason: "no editable fields supplied" };
   return { ok: true, patch };
