@@ -11,14 +11,21 @@ test("access tokens round-trip with subject and role", () => {
 });
 
 test("tokens signed with the previous secret remain verifiable during rotation", () => {
-  process.env.JWT_SECRET = "current-secret-that-is-at-least-32-characters-long";
-  process.env.JWT_SECRET_PREVIOUS = "previous-secret-that-is-at-least-32-characters-long";
+  const originalCurrent = process.env.JWT_SECRET;
+  const originalPrevious = process.env.JWT_SECRET_PREVIOUS;
+  try {
+    process.env.JWT_SECRET = "current-secret-that-is-at-least-32-characters-long";
+    delete process.env.JWT_SECRET_PREVIOUS;
+    const token = signAccessToken({ sub: "rotation-user" });
 
-  const token = signAccessToken({ sub: "rotation-user" });
-
-  process.env.JWT_SECRET = "new-current-secret-that-is-at-least-32-characters-long";
-  const payload = verifyAccessToken(token);
-  assert.equal(payload.sub, "rotation-user");
-
-  delete process.env.JWT_SECRET_PREVIOUS;
+    process.env.JWT_SECRET_PREVIOUS = process.env.JWT_SECRET;
+    process.env.JWT_SECRET = "new-current-secret-that-is-at-least-32-characters-long";
+    const payload = verifyAccessToken(token);
+    assert.equal(payload.sub, "rotation-user");
+  } finally {
+    if (originalCurrent === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = originalCurrent;
+    if (originalPrevious === undefined) delete process.env.JWT_SECRET_PREVIOUS;
+    else process.env.JWT_SECRET_PREVIOUS = originalPrevious;
+  }
 });
