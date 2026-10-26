@@ -19,8 +19,12 @@ export function signAccessToken(payload: AuthPayload) {
 }
 
 export function verifyAccessToken(token: string) {
+  const configuredSecrets = secrets();
+  if (!configuredSecrets[0] || configuredSecrets[0].length < 32) {
+    throw new Error("JWT_SECRET must be at least 32 characters");
+  }
   let last: unknown;
-  for (const s of secrets()) {
+  for (const s of configuredSecrets) {
     if (s.length < 32) continue;
     try {
       return jwt.verify(token, s) as jwt.JwtPayload & AuthPayload;
