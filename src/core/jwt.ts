@@ -9,9 +9,11 @@ const secrets = () =>
     .map((v) => v.trim());
 
 export function requireJwtSecret() {
-  const s = secrets()[0];
-  if (!s || s.length < 32) throw new Error("JWT_SECRET must be at least 32 characters");
-  return s;
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret || secret.length < 32) {
+    throw new Error("JWT_SECRET must be at least 32 characters");
+  }
+  return secret;
 }
 
 export function signAccessToken(payload: AuthPayload) {
@@ -19,13 +21,16 @@ export function signAccessToken(payload: AuthPayload) {
 }
 
 export function verifyAccessToken(token: string) {
+  // Fail closed on invalid current configuration before parsing attacker-controlled tokens.
+  requireJwtSecret();
+
   let last: unknown;
-  for (const s of secrets()) {
-    if (s.length < 32) continue;
+  for (const secret of secrets()) {
+    if (secret.length < 32) continue;
     try {
-      return jwt.verify(token, s) as jwt.JwtPayload & AuthPayload;
-    } catch (e) {
-      last = e;
+      return jwt.verify(token, secret) as jwt.JwtPayload & AuthPayload;
+    } catch (error) {
+      last = error;
     }
   }
   throw last || new Error("invalid token");
