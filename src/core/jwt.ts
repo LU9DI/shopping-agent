@@ -9,7 +9,7 @@ const secrets = () =>
     .map((v) => v.trim());
 
 export function requireJwtSecret() {
-  const s = secrets()[0];
+  const s = process.env.JWT_SECRET?.trim();
   if (!s || s.length < 32) throw new Error("JWT_SECRET must be at least 32 characters");
   return s;
 }
@@ -19,6 +19,7 @@ export function signAccessToken(payload: AuthPayload) {
 }
 
 export function verifyAccessToken(token: string) {
+  requireJwtSecret();
   let last: unknown;
   for (const s of secrets()) {
     if (s.length < 32) continue;
